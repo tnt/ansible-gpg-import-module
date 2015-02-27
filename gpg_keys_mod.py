@@ -38,6 +38,7 @@ class GpgKeysMod(object):
                 sleep(self.delay)
                 if res[0] == 0:
                     return 0
+        return 8888
 
     def execute_command(self, cmd):
         res = self.m.run_command(self.commands[cmd] % self.key_id)
@@ -63,7 +64,6 @@ def main():
         supports_check_mode=True
     )
 
-    changed = False
     gkm = GpgKeysMod(module)
 
     if gkm.refresh and gkm.delete:
@@ -71,20 +71,25 @@ def main():
 
     key_present = gkm.execute_command('check') == 0
 
-    if not key_present and module.check_mode:
+    if module.check_mode and not key_present and not gkm.delete:
         changed = True
-    else:
-        rc = None
-        if key_present and gkm.refresh and not module.check_mode:
-            rc = gkm.repeat_command('refresh')
-        elif key_present and gkm.delete and not module.check_mode:
-            rc = gkm.execute_command('delete')
-        elif not key_present and not module.check_mode:
-            rc = gkm.repeat_command('recv')
-            if rc != 0:
-                module.fail_json(msg=gkm.c_results['recv'])
+    elif not module.check_mode:
+        changed = False
+        meth, cmd = lambda x: None, 'placebo'    # yet improvable
+
+        if key_present and gkm.delete:
+            meth, cmd = gkm.execute_command, 'delete'
+        elif key_present and gkm.refresh:
+            meth, cmd = gkm.repeat_command, 'refresh'
+        elif not key_present and not gkm.delete:
+            meth, cmd = gkm.repeat_command, 'recv'
+
+        rc = meth(cmd)
+
         if rc == 0:
             changed = True
+        elif rc is not None:
+            module.fail_json(msg=gkm.c_results[cmd])
 
     result = {'c_results': gkm.c_results,
               'changed': changed}

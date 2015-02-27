@@ -1,26 +1,36 @@
 # ansible-gpg-keys-mod
 
-Not yet fully functioning Ansible module to manage GPG-keys.
+Not yet fully perfect functioning Ansible module to manage GPG-keys.
 
 ### examples
 
 ```YAML
 tasks:
   - name: Install GPG key
-    gpg_keys_mod: key_id=409B6B1796C275462A1703113804BB82D39DC0E3
+    gpg_keys_mod: key_id="0x3804BB82D39DC0E3"
 ```
 or
 ```YAML
 tasks:
   - name: Install GPG key
     gpg_keys_mod:
-      key_id: "409B6B1796C275462A1703113804BB82D39DC0E3"
+      key_id: "0x3804BB82D39DC0E3"
       servers:
         - 'hkp://no.way.ever'
         - 'keys.gnupg.net'
         - 'hkps://hkps.pool.sks-keyservers.net'
-      tries: 3
+```
+or
+```YAML
+tasks:
+  - name: Install or fail with fake and not fake GPG keys
+    gpg_keys_mod:
+      key_id: "{{ item }}"
+      tries: 2
       delay: 0
+    with_items:
+      - "0x3804BB82D39DC0E3"
+      - "0x3804BB82D39DC0E4" # fake key fails
 ```
 
 ### options
@@ -33,4 +43,4 @@ refresh      | no                 | calls `gpg --refresh-keys ...` - always resu
 delete       | no                 | calls `gpg --delete-keys ...`
 
 
-At the current stage [strange behavior](https://gist.github.com/tnt/eedaed9a6cc75130b9cb) occurs when used combined with `with_items`. Probably I have to learn more about ansible modules...
+[Strange behaviors](https://gist.github.com/tnt/eedaed9a6cc75130b9cb) occurs when used with [insane keys](https://gist.github.com/tnt/70b116c72be11dc3cc66). But this is a gpg-problem.
