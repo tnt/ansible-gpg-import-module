@@ -27,8 +27,8 @@ class GpgKeysMod(object):
         }
         bp = self.m.get_bin_path('gpg', True)
         for c,l in self.commands.items():
-            self.commands[c] = self.commands[c] % bp
-        self.c_results = dict([k, {'tries': [], 'num_tries':  0}] for k in self.commands.keys())
+            self.commands[c] = l % bp
+        self.c_results = dict([k, {'tries': [], 'num_tries':  0}] for k in self.commands)
 
     def repeat_command(self, cmd):
         for n in range(self.tries):
@@ -57,7 +57,6 @@ def main():
             servers=dict(default=['keys.gnupg.org'], type='list'),
             tries=dict(default=3, type='int'),
             delay=dict(default=0.5),
-            servers_first=dict(default=None, type='bool'),
             refresh=dict(default=False, type='bool'),
             delete=dict(default=False, type='bool')
         ),
