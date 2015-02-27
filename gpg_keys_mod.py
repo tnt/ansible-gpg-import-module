@@ -71,17 +71,21 @@ def main():
 
     key_present = gkm.execute_command('check') == 0
 
-    if module.check_mode and not key_present and not gkm.delete:
+    delete_present = key_present and gkm.delete
+    refresh = key_present and gkm.refresh
+    fetch_missing = not key_present and not gkm.delete
+
+    changed = False
+    if module.check_mode and (delete_present or refresh or fetch_missing):
         changed = True
-    elif not module.check_mode:
-        changed = False
+    else:
         meth, cmd = lambda x: None, 'placebo'    # yet improvable
 
-        if key_present and gkm.delete:
+        if delete_present:
             meth, cmd = gkm.execute_command, 'delete'
-        elif key_present and gkm.refresh:
+        elif refresh:
             meth, cmd = gkm.repeat_command, 'refresh'
-        elif not key_present and not gkm.delete:
+        elif fetch_missing:
             meth, cmd = gkm.repeat_command, 'recv'
 
         rc = meth(cmd)
