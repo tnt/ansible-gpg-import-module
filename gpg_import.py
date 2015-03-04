@@ -104,15 +104,15 @@ class GpgImport(object):
         for k,v in self.m.params.items():
             setattr(self, k, v)
         self.commands = {
-            'check':   '%s %s --list-keys %%s',
-            'delete':  '%s %s --batch --yes --delete-keys %%s',
-            'refresh': '%s %s --keyserver %%s --keyserver-options timeout=%%d --refresh-keys %%s',
-            'recv':    '%s %s --keyserver %%s --keyserver-options timeout=%%d --recv-keys %%s'
+            'check':   '%s %s --list-keys %s',
+            'delete':  '%s %s --batch --yes --delete-keys %s',
+            'refresh': '%s %s --keyserver %%s --keyserver-options timeout=%%d --refresh-keys %s',
+            'recv':    '%s %s --keyserver %%s --keyserver-options timeout=%%d --recv-keys %s'
         }
         bp = self.m.get_bin_path('gpg', True)
         check_mode = '--dry-run' if self.m.check_mode else ''
         for c,l in self.commands.items():
-            self.commands[c] = l % (bp, check_mode)
+            self.commands[c] = l % (bp, check_mode, self.key_id)
         self.urls = [s if re.match('hkps?://', s)
                        else 'hkp://%s' % s
                      for s in self.servers]
@@ -120,7 +120,7 @@ class GpgImport(object):
     def _repeat_command(self, cmd):
         for n in range(self.tries):
             for u in self.urls:
-                args = (u, self.gpg_timeout, self.key_id)
+                args = (u, self.gpg_timeout)
                 raw_res = self.m.run_command(self.commands[cmd] % args)
                 res = self._legiblify(cmd, raw_res)
                 if res['rc'] == 0:
@@ -129,7 +129,7 @@ class GpgImport(object):
         return {'rc': 8888}
 
     def _execute_command(self, cmd):
-        raw_res = self.m.run_command(self.commands[cmd] % self.key_id)
+        raw_res = self.m.run_command(self.commands[cmd])
         return self._legiblify(cmd, raw_res)
 
     def _legiblify(self, sec, res):
