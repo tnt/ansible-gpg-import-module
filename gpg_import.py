@@ -4,7 +4,75 @@
 from time import sleep
 import re
 
-class GpgKeysMod(object):
+DOCUMENTATION = '''
+---
+module: gpg_import
+version_added: 1.9
+short_description:  Manages import and removal of GPG-keys
+description:
+     - Imports, refreshes, and deletes GnuPG keys. When importing or refreshing a key it retries on
+       failure and optionally retries with alternating hostnames to fudge on DNS-caches that prevent
+       round-robin keyservers.
+options:
+  key_id:
+    description:
+      - "The id of the key to be imported"
+    required: true
+    default: null
+
+  state:
+    description:
+      - Whether to import (C(present), C(latest)), or remove (C(absent)) a key. C(refreshed) is an alias for C(latest).
+    required: false
+    choices: [ "present", "latest", "refreshed",  "absent" ]
+    default: "present"
+
+  servers:
+    description:
+      - A list of hostnames (or `hkp://`/`hkps://` urls) to try
+    required: false
+    default: "['keys.gnupg.net']"
+
+  tries:
+    description:
+      - How often to try per server
+    required: false
+    default: 3
+    aliases: []
+
+  delay:
+    description:
+      - Delay between retries
+    required: false
+    default: 0.5
+
+  gpg_timeout:
+    description:
+      - Timeout parameter for gpg
+    required: false
+    default: 5
+
+notes: []
+requirements: [ gpg ]
+author: Thelonius Kort
+'''
+
+EXAMPLES = '''
+- name: Install GPG key
+  gpg_import: key_id="0x3804BB82D39DC0E3" state=present
+- name: Install or update GPG key
+  gpg_import:
+    key_id: "0x3804BB82D39DC0E3"
+    state: latest
+    servers:
+      - 'hkp://no.way.ever'
+      - 'keys.gnupg.net'
+      - 'hkps://hkps.pool.sks-keyservers.net'
+- name: Install or fail with fake and not fake GPG keys
+  gpg_import:
+'''
+
+class GpgImport(object):
 
     def __init__(self, module):
         self.m = module
@@ -20,12 +88,13 @@ class GpgKeysMod(object):
             self.changed = res['rc'] == 0
         elif key_present and self.state in ('latest','refreshed'):
             res = self._repeat_command('refresh')
-            self.changed = re.search('gpg:\s+unchanged: 1\n$', res['stderr']) is None
+            self.changed = re.search('gpg:\s+unchanged: 1\n', res['stderr']) is None
         elif not key_present and self.state in ('present','latest','refreshed'):
             res = self._repeat_command('recv')
             self.changed = res['rc'] == 0
         else:
             self.changed = False
+            res = {'rc': 0}
 
         if res['rc'] != 0:
             self.m.fail_json(msg=self.log_dic)
@@ -87,7 +156,7 @@ def main():
         supports_check_mode=True
     )
 
-    gkm = GpgKeysMod(module)
+    gkm = GpgImport(module)
 
     result = {'log_dic': gkm.log_dic,
               'changed': gkm.changed}

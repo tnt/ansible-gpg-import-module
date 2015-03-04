@@ -1,6 +1,6 @@
-# ansible-gpg-keys-mod
+# ansible-gpg-import
 
-Ansible module to manage GPG-keys.
+Ansible module to import and remove GPG-keys.
 
 It addresses the issues of non-responding keyservers in general by repeating attempts and keys.gnupg.net's round-robin-DNS sabotaging DNS-caching (like the Windows DNS-cache does it) in particular by optionally trying alternating hostnames.
 
@@ -9,13 +9,13 @@ It addresses the issues of non-responding keyservers in general by repeating att
 ```YAML
 tasks:
   - name: Install GPG key
-    gpg_keys_mod: key_id="0x3804BB82D39DC0E3" state=present
+    gpg_import: key_id="0x3804BB82D39DC0E3"
 ```
 or
 ```YAML
 tasks:
   - name: Install or update GPG key
-    gpg_keys_mod:
+    gpg_import:
       key_id: "0x3804BB82D39DC0E3"
       state: latest
       servers:
@@ -27,11 +27,9 @@ or
 ```YAML
 tasks:
   - name: Install or fail with fake and not fake GPG keys
-    gpg_keys_mod:
+    gpg_import:
       key_id: "{{ item }}"
-      state: present
       tries: 2
-      delay: 0
     with_items:
       - "0x3804BB82D39DC0E3"
       - "0x3804BB82D39DC0E4" # fake key fails
@@ -40,10 +38,10 @@ tasks:
 ### options
 name         | default            | description
 -------------|:------------------:|-------------
+state        | 'present'          | desired state 'present', 'latest', 'refreshed' or 'absent' ('refreshed' == 'latest')
 servers      | [ keys.gnupg.net ] | list of hostnames (or `hkp://`/`hkps://` urls) to try
 tries        |   3                | number of attempts per *server*
 delay        |  0.5               | delay between retries
-state        | 'present'          | desired state 'present', 'latest', 'refreshed' or 'absent' ('refreshed' == 'latest')
 gpg_timeout  | 5                  | `gpg --keyserver-options timeout=5 ...`
 
 
