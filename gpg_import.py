@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# © Thelonius Kort - Feel free to redistribute this with any MIT, GPL, or Apache License
 
 from time import sleep
 import re
