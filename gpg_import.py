@@ -21,6 +21,12 @@ options:
     required: true
     default: null
 
+  bin_path:
+    description:
+      - "Location of GPG binary"
+    require: false
+    default: /usr/bin/gpg
+
   state:
     description:
       - Whether to import (C(present), C(latest)), or remove (C(absent)) a key. C(refreshed) is an alias for C(latest).
@@ -110,7 +116,7 @@ class GpgImport(object):
             'refresh': '%s %s --keyserver %%s --keyserver-options timeout=%%d --refresh-keys %s',
             'recv':    '%s %s --keyserver %%s --keyserver-options timeout=%%d --recv-keys %s'
         }
-        bp = self.m.get_bin_path('gpg', True)
+        bp = self.m.get_bin_path(self.bin_path, True)
         check_mode = '--dry-run' if self.m.check_mode else ''
         for c,l in self.commands.items():
             self.commands[c] = l % (bp, check_mode, self.key_id)
@@ -148,7 +154,8 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             key_id=dict(required=True, type='str'),
-            servers=dict(default=['keys.gnupg.org'], type='list'),
+            servers=dict(default=['keys.gnupg.net'], type='list'),
+            bin_path=dict(default='/usr/bin/gpg', type='str'),
             tries=dict(default=3, type='int'),
             delay=dict(default=0.5),
             state=dict(default='present', choices=['latest', 'refreshed', 'absent', 'present']),
