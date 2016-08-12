@@ -14,6 +14,13 @@ tasks:
 or
 ```YAML
 tasks:
+  - name: Install GPG key
+    gpg_import: key_id="0x3804BB82D39DC0E3"
+      bin_path: '/usr/loca/bin/gpg'
+```
+or
+```YAML
+tasks:
   - name: Install or update GPG key
     gpg_import:
       key_id: "0x3804BB82D39DC0E3"
@@ -43,6 +50,6 @@ servers      | [ keys.gnupg.net ] | list of hostnames (or `hkp://`/`hkps://` url
 tries        |   3                | number of attempts per *server*
 delay        |  0.5               | delay between retries
 gpg_timeout  | 5                  | `gpg --keyserver-options timeout=5 ...`
-
+bin_path     | /usr/bin/gpg       | Location of gpg binary
 
 [Strange behaviors](https://gist.github.com/tnt/eedaed9a6cc75130b9cb) occur when used with [insane keys](https://gist.github.com/tnt/70b116c72be11dc3cc66). But this is a gpg-problem.
