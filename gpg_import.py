@@ -4,6 +4,7 @@
 
 from time import sleep
 import re
+import string
 
 DOCUMENTATION = '''
 ---
@@ -17,9 +18,22 @@ description:
 options:
   key_id:
     description:
-      - "The id of the key to be imported"
-    required: true
+      - The id of the key to be fetched and imported. Only applicable to private keys (for now). Either key_file or key_id is required.
+    required: false
     default: null
+
+  key_file:
+    description:
+      - Filename of key to be imported. Must be on remote machine, not local. Only applicable to public keys (for now). Either key_file or key_id is required.
+    required: false
+    default: null
+
+  key_type:
+    description:
+      - What type of key to import.
+    required: true
+    choices: [ "private", "public" ]
+    default: "private"
 
   bin_path:
     description:
@@ -77,18 +91,51 @@ EXAMPLES = '''
       - 'hkps://hkps.pool.sks-keyservers.net'
 - name: Install or fail with fake and not fake GPG keys
   gpg_import:
+
+- name: import a file-based public key
+  gpg_import: key_type=public state=present key_file=/etc/customer-key/customer.pubkey
 '''
+
+class SafeDict(dict):
+    def __missing__(self, key):
+        return '{' + key + '}'
+
+# http://stackoverflow.com/a/33621609/659298
+class SafeFormatter(string.Formatter):
+    def __init__(self, default='{{{0}}}'):
+        self.default=default
+
+    def get_value(self, key, args, kwds):
+        if isinstance(key, str):
+            return kwds.get(key, self.default.format(key))
+        else:
+            string.Formatter.get_value(key, args, kwds)
 
 class GpgImport(object):
 
     def __init__(self, module):
         self.m = module
+        self.debuglist = []
         self._setup_creds()
         self._execute_task()
 
+    def _debug(self, msg):
+        # named 'debuglist' to avoid 'self.debug()' attempting to work.
+        self.debuglist.append(msg)
+
     def _execute_task(self):
-        res = self._execute_command('check')
-        key_present = res['rc'] == 0
+        key_present = False
+        if self.key_type == 'public':
+            filekey = self._get_key_from_file()
+            if filekey:
+                # rerun the original setup with this key in the commands
+                self._setup_creds(filekey)
+                res = self._execute_command('check-public')
+                self._debug('checkpublic: %s' % (str(res)))
+                key_present = res['rc'] == 0
+        else:
+            res = self._execute_command('check')
+            key_present = res['rc'] == 0
 
         if key_present and self.state == 'absent':
             res = self._execute_command('delete')
@@ -97,32 +144,52 @@ class GpgImport(object):
             res = self._repeat_command('refresh')
             self.changed = re.search('gpg:\s+unchanged: 1\n', res['stderr']) is None
         elif not key_present and self.state in ('present','latest','refreshed'):
-            res = self._repeat_command('recv')
+            if self.key_type == 'private':
+                self._debug('running recv')
+                res = self._repeat_command('recv')
+            elif self.key_type == 'public':
+                res = self._execute_command('import-public')
+                self._debug('running i-p')
+                self.changed = res['rc'] == 0
             self.changed = res['rc'] == 0
+        #elif key_present and self.state == 'xxxxxx':
+        #    res = self._execute_command('xxxxxx')
+        #    self.changed = res['rc'] == 0
         else:
             self.changed = False
             res = {'rc': 0}
 
         if res['rc'] != 0:
-            self.m.fail_json(msg=self.log_dic)
+            self.m.fail_json(msg=self.log_dic, debug=self.debuglist)
 
 
-    def _setup_creds(self):
+    def _setup_creds(self, key_override=None):
         for k,v in self.m.params.items():
             setattr(self, k, v)
+        if key_override:
+            self.key_id = key_override
         self.commands = {
-            'check':   '%s %s --list-keys %s',
-            'delete':  '%s %s --batch --yes --delete-keys %s',
-            'refresh': '%s %s --keyserver %%s --keyserver-options timeout=%%d --refresh-keys %s',
-            'recv':    '%s %s --keyserver %%s --keyserver-options timeout=%%d --recv-keys %s'
+            'check':   '{bin_path} {check_mode} --list-keys {key_id}',
+            'delete':  '{bin_path} {check_mode} --batch --yes --delete-keys {key_id}',
+            'refresh': '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --refresh-keys {url}',
+            'recv':    '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --recv-keys {url}',
+            'check-public':  '{bin_path} {check_mode} --list-public-keys {key_id}',
+            'import-public': '{bin_path} {check_mode} --import {key_file}'
         }
-        bp = self.m.get_bin_path(self.bin_path, True)
-        check_mode = '--dry-run' if self.m.check_mode else ''
+        command_data = {
+            'check_mode': '--dry-run' if self.m.check_mode else '',
+            'bin_path': self.m.get_bin_path(self.bin_path, True),
+            'key_id': self.key_id,
+            'key_file': self.key_file
+        }
+        # sort of a brilliant way of late-binding/double-formatting given here: http://stackoverflow.com/a/17215533/659298
         for c,l in self.commands.items():
-            self.commands[c] = l % (bp, check_mode, self.key_id)
+            sf = SafeFormatter()
+            self.commands[c] = sf.format(l, **command_data)
         self.urls = [s if re.match('hkps?://', s)
                        else 'hkp://%s' % s
                      for s in self.servers]
+        self._debug('set up commands: %s' % (str(self.commands)))
 
     def _repeat_command(self, cmd):
         for n in range(self.tries):
@@ -136,6 +203,7 @@ class GpgImport(object):
         return {'rc': 8888}
 
     def _execute_command(self, cmd):
+        self._debug('command: %s' % (str(self.commands[cmd])))
         raw_res = self.m.run_command(self.commands[cmd])
         return self._legiblify(cmd, raw_res)
 
@@ -149,25 +217,47 @@ class GpgImport(object):
         self.log_dic[sec]['num_tries'] += 1
         return rdic
 
+    def _get_key_from_file(self):
+        keycmd = '%s --dry-run --import %s'
+        bp = self.m.get_bin_path(self.bin_path, True)
+        print(bp, self.key_file)
+        keycmd_expanded = keycmd % (bp, self.key_file)
+        self.changed = False
+        raw_res = self.m.run_command(keycmd_expanded)
+        keyinfo = raw_res[2]
+        self._debug('keyinfo: %s' % (str(keyinfo)))
+        # keyinfo: gpg: key 32382FA0: \"Pau
+        keysearch = re.match(r'gpg:\s+key\s+([0-9A-F]+):', keyinfo)
+
+        if keysearch and keysearch.group(1):
+            self._debug('keysearch groups: %s' % (str(keysearch.groups())))
+            return keysearch.group(1)
+        return None
 
 def main():
     module = AnsibleModule(
         argument_spec = dict(
-            key_id=dict(required=True, type='str'),
+            key_id=dict(required=False, type='str'),
+            key_file=dict(required=False, type='str'),
             servers=dict(default=['keys.gnupg.net'], type='list'),
             bin_path=dict(default='/usr/bin/gpg', type='str'),
             tries=dict(default=3, type='int'),
             delay=dict(default=0.5),
             state=dict(default='present', choices=['latest', 'refreshed', 'absent', 'present']),
+            key_type=dict(default='private', choices=['private', 'public']),
             gpg_timeout=dict(default=5, type='int')
         ),
-        supports_check_mode=True
+        supports_check_mode=True,
+        required_one_of=[['key_id', 'key_file']]
     )
 
     gkm = GpgImport(module)
 
-    result = {'log_dic': gkm.log_dic,
-              'changed': gkm.changed}
+    result = {
+        'log_dic': gkm.log_dic,
+        'changed': gkm.changed,
+        'debug': gkm.debuglist
+    }
 
     module.exit_json(**result)
 
