@@ -133,6 +133,14 @@ class GpgImport(object):
                 res = self._execute_command('check-public')
                 self._debug('checkpublic: %s' % (str(res)))
                 key_present = res['rc'] == 0
+        elif self.key_type == 'private':
+            filekey = self._get_key_from_file()
+            if filekey:
+                # rerun the original setup with this key in the commands
+                self._setup_creds(filekey)
+                res = self._execute_command('check-private')
+                self._debug('checkprivate: %s' % (str(res)))
+                key_present = res['rc'] == 0
         else:
             res = self._execute_command('check')
             key_present = res['rc'] == 0
@@ -145,12 +153,15 @@ class GpgImport(object):
             self.changed = re.search('gpg:\s+unchanged: 1\n', res['stderr']) is None
         elif not key_present and self.state in ('present','latest','refreshed'):
             if self.key_type == 'private':
-                self._debug('running recv')
-                res = self._repeat_command('recv')
+                if self.key_file:
+                    res = self._execute_command('import-key')
+                    self._debug('running i-private')
+                else:
+                    self._debug('running recv')
+                    res = self._repeat_command('recv')
             elif self.key_type == 'public':
-                res = self._execute_command('import-public')
-                self._debug('running i-p')
-                self.changed = res['rc'] == 0
+                res = self._execute_command('import-key')
+                self._debug('running i-public')
             self.changed = res['rc'] == 0
         #elif key_present and self.state == 'xxxxxx':
         #    res = self._execute_command('xxxxxx')
@@ -172,9 +183,10 @@ class GpgImport(object):
             'check':   '{bin_path} {check_mode} --list-keys {key_id}',
             'delete':  '{bin_path} {check_mode} --batch --yes --delete-keys {key_id}',
             'refresh': '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --refresh-keys {url}',
+            'check-private':  '{bin_path} {check_mode} --list-secret-keys {key_id}',
             'recv':    '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --recv-keys {url}',
             'check-public':  '{bin_path} {check_mode} --list-public-keys {key_id}',
-            'import-public': '{bin_path} {check_mode} --import {key_file}'
+            'import-key': '{bin_path} {check_mode} --import {key_file}'
         }
         command_data = {
             'check_mode': '--dry-run' if self.m.check_mode else '',
