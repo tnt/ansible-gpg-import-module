@@ -94,6 +94,9 @@ EXAMPLES = '''
 
 - name: import a file-based public key
   gpg_import: key_type=public state=present key_file=/etc/customer-key/customer.pubkey
+
+- name: import a file-based private key
+  gpg_import: key_type=private state=present key_file=/etc/customer-key/customer.privatekey
 '''
 
 class SafeDict(dict):
