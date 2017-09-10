@@ -185,9 +185,9 @@ class GpgImport(object):
         self.commands = {
             'check':   '{bin_path} {check_mode} --list-keys {key_id}',
             'delete':  '{bin_path} {check_mode} --batch --yes --delete-keys {key_id}',
-            'refresh': '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --refresh-keys {url}',
+            'refresh': '{bin_path} {check_mode} --keyserver {url} --keyserver-options timeout={timeout} --refresh-keys {key_id}',
             'check-private':  '{bin_path} {check_mode} --list-secret-keys {key_id}',
-            'recv':    '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --recv-keys {url}',
+            'recv':    '{bin_path} {check_mode} --keyserver {url} --keyserver-options timeout={timeout} --recv-keys {key_id}',
             'check-public':  '{bin_path} {check_mode} --list-public-keys {key_id}',
             'import-key': '{bin_path} {check_mode} --import {key_file}'
         }
