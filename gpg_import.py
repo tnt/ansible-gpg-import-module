@@ -209,8 +209,12 @@ class GpgImport(object):
     def _repeat_command(self, cmd):
         for n in range(self.tries):
             for u in self.urls:
-                args = (u, self.gpg_timeout)
-                raw_res = self.m.run_command(self.commands[cmd] % args)
+                sf = SafeFormatter()
+                full_command = sf.format(
+                    self.commands[cmd], timeout=self.gpg_timeout, url=u
+                )
+                self._debug("full command: %s" % (full_command))
+                raw_res = self.m.run_command(full_command)
                 res = self._legiblify(cmd, raw_res)
                 if res['rc'] == 0:
                     return res
