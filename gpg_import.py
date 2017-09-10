@@ -261,7 +261,7 @@ def main():
             servers=dict(default=['keys.gnupg.net'], type='list'),
             bin_path=dict(default='/usr/bin/gpg', type='str'),
             tries=dict(default=3, type='int'),
-            delay=dict(default=0.5),
+            delay=dict(default=0.5, type='float'),
             state=dict(default='present', choices=['latest', 'refreshed', 'absent', 'present']),
             key_type=dict(default='private', choices=['private', 'public']),
             gpg_timeout=dict(default=5, type='int')
