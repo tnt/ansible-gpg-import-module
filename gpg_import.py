@@ -185,9 +185,9 @@ class GpgImport(object):
         self.commands = {
             'check':   '{bin_path} {check_mode} --list-keys {key_id}',
             'delete':  '{bin_path} {check_mode} --batch --yes --delete-keys {key_id}',
-            'refresh': '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --refresh-keys {url}',
+            'refresh': '{bin_path} {check_mode} --keyserver {url} --keyserver-options timeout={timeout} --refresh-keys {key_id}',
             'check-private':  '{bin_path} {check_mode} --list-secret-keys {key_id}',
-            'recv':    '{bin_path} {check_mode} --keyserver {key_id} --keyserver-options timeout={timeout} --recv-keys {url}',
+            'recv':    '{bin_path} {check_mode} --keyserver {url} --keyserver-options timeout={timeout} --recv-keys {key_id}',
             'check-public':  '{bin_path} {check_mode} --list-public-keys {key_id}',
             'import-key': '{bin_path} {check_mode} --import {key_file}'
         }
@@ -209,8 +209,12 @@ class GpgImport(object):
     def _repeat_command(self, cmd):
         for n in range(self.tries):
             for u in self.urls:
-                args = (u, self.gpg_timeout)
-                raw_res = self.m.run_command(self.commands[cmd] % args)
+                sf = SafeFormatter()
+                full_command = sf.format(
+                    self.commands[cmd], timeout=self.gpg_timeout, url=u
+                )
+                self._debug("full command: %s" % (full_command))
+                raw_res = self.m.run_command(full_command)
                 res = self._legiblify(cmd, raw_res)
                 if res['rc'] == 0:
                     return res
@@ -257,7 +261,7 @@ def main():
             servers=dict(default=['keys.gnupg.net'], type='list'),
             bin_path=dict(default='/usr/bin/gpg', type='str'),
             tries=dict(default=3, type='int'),
-            delay=dict(default=0.5),
+            delay=dict(default=0.5, type='float'),
             state=dict(default='present', choices=['latest', 'refreshed', 'absent', 'present']),
             key_type=dict(default='private', choices=['private', 'public']),
             gpg_timeout=dict(default=5, type='int')
